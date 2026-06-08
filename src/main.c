@@ -10,6 +10,12 @@
 
 STATIC_DATA config = {0};
 
+// TRUE when this process token holds the privileges required for memory
+// cleaning (SeProfileSingleProcess + SeIncreaseQuota). Set once in
+// _app_initialize; lets a standard user clean with no UAC when the rights
+// were granted via Local Security Policy. (status patch)
+BOOLEAN is_privileged = FALSE;
+
 ULONG limits_arr[13] = {0};
 ULONG intervals_arr[13] = {0};
 
@@ -107,7 +113,7 @@ VOID _app_generate_menu (
 
 		_r_menu_additem (hsubmenu, menu_id, buffer);
 
-		if (!_r_sys_iselevated ())
+		if (!is_privileged)
 			_r_menu_enableitem (hsubmenu, menu_id, FALSE, FALSE);
 
 		if (value == menu_value)
@@ -304,7 +310,7 @@ VOID _app_memoryclean (
 	if (!_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL))
 		flags |= NIIF_NOSOUND;
 
-	if (!_r_sys_iselevated ())
+	if (!is_privileged)
 	{
 		error_text = _r_locale_getstring (IDS_STATUS_NOPRIVILEGES);
 
@@ -700,7 +706,7 @@ VOID CALLBACK _app_timercallback (
 	_app_getmemoryinfo (&mem_info);
 
 	// autocleanup functional
-	if (_r_sys_iselevated ())
+	if (is_privileged)
 	{
 		if (_r_config_getboolean (L"AutoreductEnable", FALSE, NULL))
 		{
@@ -956,7 +962,7 @@ INT_PTR CALLBACK SettingsProc (
 
 					_r_wnd_removecontext (hwnd, IDC_REGIONS);
 
-					if (!_r_sys_iselevated ())
+					if (!is_privileged)
 					{
 						_r_ctrl_enable (hwnd, IDC_REGIONS, FALSE);
 						_r_ctrl_enable (hwnd, IDC_AUTOREDUCTENABLE_CHK, FALSE);
@@ -1832,17 +1838,22 @@ VOID _app_initialize (
 		SE_INCREASE_QUOTA_PRIVILEGE,
 	};
 
+	NTSTATUS status;
 	LONG dpi_value;
 
-	if (_r_sys_iselevated ())
-	{
-		_r_sys_setprocessprivilege (NtCurrentProcess (), privileges, RTL_NUMBER_OF (privileges), TRUE);
-	}
-	else
-	{
-		if (hwnd)
-			_r_ctrl_setbuttonshield (hwnd, IDC_CLEAN, TRUE);
-	}
+	// Acquire the privileges required for memory cleaning. An elevated token
+	// already holds them; a standard-user token holds them only if the rights
+	// "Profile single process" + "Adjust memory quotas for a process" were
+	// granted via Local Security Policy. NtAdjustPrivilegesToken returns
+	// STATUS_SUCCESS only when every privilege was actually present, so this
+	// doubles as our gate for letting a non-elevated user clean with no UAC.
+	// (status patch)
+	status = _r_sys_setprocessprivilege (NtCurrentProcess (), privileges, RTL_NUMBER_OF (privileges), TRUE);
+
+	is_privileged = (status == STATUS_SUCCESS);
+
+	if (hwnd && !is_privileged)
+		_r_ctrl_setbuttonshield (hwnd, IDC_CLEAN, TRUE);
 
 	if (!hwnd)
 		return;
@@ -1948,7 +1959,7 @@ INT_PTR CALLBACK DlgProc (
 
 		case RM_INITIALIZE_POST:
 		{
-			if (_r_sys_iselevated ())
+			if (is_privileged)
 				_app_hotkeyinit (hwnd);
 
 			break;
@@ -2030,7 +2041,7 @@ INT_PTR CALLBACK DlgProc (
 
 			_app_resizecolumns (hwnd);
 
-			if (!_r_sys_iselevated ())
+			if (!is_privileged)
 			{
 				dpi_value = LOWORD (wparam);
 
@@ -2286,7 +2297,7 @@ INT_PTR CALLBACK DlgProc (
 						_r_menu_checkitem (hsubmenu_region, IDM_REGISTRYCACHE_CHK, 0, MF_BYCOMMAND, (mask & REDUCT_REGISTRY_CACHE) == REDUCT_REGISTRY_CACHE);
 						_r_menu_checkitem (hsubmenu_region, IDM_COMBINEMEMORYLISTS_CHK, 0, MF_BYCOMMAND, (mask & REDUCT_COMBINE_MEMORY_LISTS) == REDUCT_COMBINE_MEMORY_LISTS);
 
-						if (!_r_sys_iselevated ())
+						if (!is_privileged)
 						{
 							_r_menu_enableitem (hsubmenu_region, IDM_WORKINGSET_CHK, FALSE, FALSE);
 							_r_menu_enableitem (hsubmenu_region, IDM_SYSTEMFILECACHE_CHK, FALSE, FALSE);
@@ -2684,7 +2695,7 @@ INT_PTR CALLBACK DlgProc (
 				case IDC_CLEAN:
 				case IDM_TRAY_CLEAN:
 				{
-					if (_r_sys_iselevated ())
+					if (is_privileged)
 					{
 						_app_memoryclean (hwnd, SOURCE_MANUAL, 0);
 					}
