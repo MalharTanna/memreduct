@@ -20,10 +20,10 @@ goto end
 
 :start
 
-msbuild memreduct.sln -property:Configuration=Release -property:Platform=x64 -verbosity:normal
+msbuild ibsmemcleaner.sln -property:Configuration=Release -property:Platform=x64 -verbosity:normal
 if %ERRORLEVEL% neq 0 goto end
 
-msbuild memreduct.sln -property:Configuration=Release -property:Platform=ARM64 -verbosity:normal
+msbuild ibsmemcleaner.sln -property:Configuration=Release -property:Platform=ARM64 -verbosity:normal
 if %ERRORLEVEL% neq 0 goto end
 
 :end

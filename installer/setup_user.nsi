@@ -1,5 +1,5 @@
 ; ============================================================================
-; Mem Reduct - per-user, NO-UAC installer (standard-user friendly)
+; IBS Mem Cleaner - per-user, NO-UAC installer (standard-user friendly)
 ; ----------------------------------------------------------------------------
 ; Unlike the stock henrypp installer (builder/src/setup_script.nsi) this one:
 ;   * RequestExecutionLevel user      -> no UAC prompt at all
@@ -13,7 +13,7 @@
 ; Build (run from this folder, NSIS must be installed):
 ;   makensis /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\bin setup_user.nsi
 ; or just run build_installer.bat
-; Produces: memreduct-<ver>-setup-user.exe
+; Produces: ibsmemcleaner-<ver>-setup-user.exe
 ; ============================================================================
 
 Unicode true
@@ -24,8 +24,8 @@ SetCompressor /SOLID lzma
 !include "FileFunc.nsh"
 !include "LogicLib.nsh"
 
-!define APP_NAME        "Mem Reduct"
-!define APP_NAME_SHORT  "memreduct"
+!define APP_NAME        "IBS Mem Cleaner"
+!define APP_NAME_SHORT  "ibsmemcleaner"
 !define APP_AUTHOR      "Henry++"
 !define APP_WEBSITE     "https://github.com/henrypp"
 !define UNINST_KEY      "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME_SHORT}"
@@ -35,7 +35,7 @@ SetCompressor /SOLID lzma
   !define APP_VERSION "3.5.3"
 !endif
 
-; folder containing the built memreduct.exe (+ optional .lng / License.txt / ...)
+; folder containing the built ibsmemcleaner.exe (+ optional .lng / License.txt / ...)
 !ifndef APP_FILES_DIR
   !define APP_FILES_DIR "..\bin"
 !endif

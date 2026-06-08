@@ -1,8 +1,8 @@
 @echo off
 :: ===========================================================================
-:: Mem Reduct - Path B fallback: background auto-clean as SYSTEM (no UAC)
+:: IBS Mem Cleaner - Path B fallback: background auto-clean as SYSTEM (no UAC)
 :: ===========================================================================
-:: Registers a Scheduled Task that runs "memreduct.exe -clean" as the SYSTEM
+:: Registers a Scheduled Task that runs "ibsmemcleaner.exe -clean" as the SYSTEM
 :: account on a timer. SYSTEM already holds every privilege, so the clean runs
 :: with NO UAC prompt regardless of who is logged in. The standard user's GUI
 :: keeps running separately for monitoring.
@@ -13,7 +13,7 @@
 ::
 :: Run this script ELEVATED (right-click -> Run as administrator) ONCE.
 :: ---------------------------------------------------------------------------
-:: NOTE: a SYSTEM run uses SYSTEM's own Mem Reduct config (not the user's), and
+:: NOTE: a SYSTEM run uses SYSTEM's own IBS Mem Cleaner config (not the user's), and
 :: the -clean path tries to show a result message. In session 0 that message has
 :: no desktop and returns immediately, so the task does not hang -- but you get
 :: no visible confirmation. Use Task Scheduler -> History, or enable file logging
@@ -22,18 +22,18 @@
 
 setlocal
 
-:: ---- EDIT THIS: full path to your patched memreduct.exe --------------------
-set "EXE=C:\Program Files\Mem Reduct\memreduct.exe"
+:: ---- EDIT THIS: full path to your patched ibsmemcleaner.exe --------------------
+set "EXE=C:\Program Files\IBS Mem Cleaner\ibsmemcleaner.exe"
 
 :: ---- clean interval in minutes --------------------------------------------
 set "EVERY=30"
 
 :: ---- task name ------------------------------------------------------------
-set "TASK=MemReduct AutoClean (SYSTEM)"
+set "TASK=IBS Mem Cleaner AutoClean (SYSTEM)"
 :: ---------------------------------------------------------------------------
 
 if not exist "%EXE%" (
-    echo [ERROR] memreduct.exe not found at:
+    echo [ERROR] ibsmemcleaner.exe not found at:
     echo         %EXE%
     echo Edit the EXE path at the top of this script.
     exit /b 1

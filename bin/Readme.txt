@@ -1,4 +1,4 @@
-Mem Reduct
+IBS Mem Cleaner
 
 Description:
 Lightweight real-time memory management application to monitor
@@ -10,7 +10,7 @@ System requirements:
 - Windows 7, 8, 8.1, 10, 11 64-bit/ARM64
 - An SSE2-capable CPU
 
-To activate portable mode, create "memreduct.ini" in application folder, or move it from "%APPDATA%\Henry++\Mem Reduct".
+To activate portable mode, create "ibsmemcleaner.ini" in application folder, or move it from "%APPDATA%\Henry++\IBS Mem Cleaner".
 
 Website: https://github.com/henrypp
 Support: sforce5@mail.ru

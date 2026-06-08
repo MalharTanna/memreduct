@@ -2778,7 +2778,7 @@ BOOLEAN NTAPI _app_parseargs (
 			_r_show_message (
 				NULL,
 				MB_OK | MB_ICONINFORMATION | MB_TOPMOST,
-				L"Available options for memreduct.exe:",
+				L"Available options for ibsmemcleaner.exe:",
 				L"-clean - clear default memory regions\r\n" \
 				L"-clean:full - clear all memory regions"
 			);

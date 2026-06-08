@@ -28,8 +28,8 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{7FB76828-A353-4113-82D7-CD728EED81DF}</ProjectGuid>
-    <RootNamespace>memreduct</RootNamespace>
-    <ProjectName>memreduct</ProjectName>
+    <RootNamespace>ibsmemcleaner</RootNamespace>
+    <ProjectName>ibsmemcleaner</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

@@ -1,4 +1,4 @@
-# Mem Reduct — no-UAC cleaning for a standard user (Win11 Pro)
+# IBS Mem Cleaner — no-UAC cleaning for a standard user (Win11 Pro)
 
 This fork is patched so a **standard (non-admin) user** can run memory cleaning —
 manual, hotkey, threshold auto-clean and interval auto-clean — with **no UAC
@@ -11,7 +11,7 @@ This is a two-part change. **Both parts are required**; neither works alone.
 
 ## Part 1 — the code patch (already applied in this repo)
 
-Mem Reduct gates all cleaning behind `_r_sys_iselevated()`. The kernel calls it
+IBS Mem Cleaner gates all cleaning behind `_r_sys_iselevated()`. The kernel calls it
 makes (`NtSetSystemInformation`) don't actually need a full admin token — they
 need two specific privileges:
 
@@ -94,8 +94,8 @@ Log off/on afterward.
 As the standard user, after re-login:
 
 1. `whoami /priv` should list **SeProfileSingleProcessPrivilege** and
-   **SeIncreaseQuotaPrivilege** (state "Disabled" is fine — Mem Reduct enables them).
-2. Launch Mem Reduct normally (no "Run as administrator"). The **Clean** button has
+   **SeIncreaseQuotaPrivilege** (state "Disabled" is fine — IBS Mem Cleaner enables them).
+2. Launch IBS Mem Cleaner normally (no "Run as administrator"). The **Clean** button has
    **no UAC shield**, and clicking it reports bytes freed instead of prompting.
 3. Settings → Memory: the region checkboxes and auto-reduct controls are enabled.
 
@@ -107,7 +107,7 @@ the rights — confirm step 1 and that you actually logged off and on.
 ## Operational notes
 
 - **Disable auto-update** (Settings → "Check updates" off). henrypp's updater would
-  replace this patched `memreduct.exe` with the official build and undo Part 1.
+  replace this patched `ibsmemcleaner.exe` with the official build and undo Part 1.
   Re-apply the patch + rebuild if you ever update.
 - **Standby / modified page list in auto-clean:** these are excluded from
   *automatic* cleaning by default (they can cause brief system stutter). To include
@@ -123,11 +123,17 @@ Requires the submodules and MSVC (this repo can't build on macOS):
 
 ```bat
 git submodule update --init --recursive   :: fetches ..\routine and ..\builder
-build.bat                                  :: -> calls ..\builder\build memreduct 3.5.3 "Mem Reduct"
+build.bat                                  :: -> calls ..\builder\build ibsmemcleaner 3.5.3 "IBS Mem Cleaner"
 ```
 
-Output `memreduct.exe` goes to `bin\`. For a quick test build you can also open
-`memreduct.sln` in Visual Studio (x64) and build.
+Output `ibsmemcleaner.exe` goes to `bin\`. For a quick test build you can also open
+`ibsmemcleaner.sln` in Visual Studio (x64) and build.
+
+> **Checkout folder name:** the builder derives the project path from the short
+> name (`PROJECT_DIRECTORY = ../../ibsmemcleaner` in `build_package.py`). For
+> `build.bat` packaging to find the project, the cloned repo folder must be named
+> **`ibsmemcleaner`** (rename it after cloning, even though the GitHub repo is still
+> `memreduct`). `build_vc.bat` alone (compile only) doesn't care about the folder name.
 
 ---
 
@@ -144,15 +150,15 @@ UAC, for three reasons:
 
 This repo ships a **per-user installer** that avoids all three:
 [`installer/setup_user.nsi`](installer/setup_user.nsi). It uses
-`RequestExecutionLevel user`, installs to `%LOCALAPPDATA%\Programs\Mem Reduct`,
+`RequestExecutionLevel user`, installs to `%LOCALAPPDATA%\Programs\IBS Mem Cleaner`,
 and writes only HKCU — so it installs, creates shortcuts, registers an Add/Remove
 Programs entry, and (optionally) sets sign-in autostart, all with **no UAC prompt**.
 
-Build it on Windows after building `memreduct.exe` (needs [NSIS](https://nsis.sourceforge.io)):
+Build it on Windows after building `ibsmemcleaner.exe` (needs [NSIS](https://nsis.sourceforge.io)):
 
 ```bat
 cd installer
-build_installer.bat            :: -> memreduct-3.5.3-setup-user.exe
+build_installer.bat            :: -> ibsmemcleaner-3.5.3-setup-user.exe
 ```
 
 (or `makensis /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\bin setup_user.nsi`)
@@ -171,5 +177,5 @@ elsewhere.
   and *cleaning* without UAC are separate problems — the per-user installer solves
   the first; only the one-time User Rights Assignment (Part 2) solves the second.
 - **Portable alternative:** if you don't need shortcuts / uninstall entry, skip the
-  installer entirely — drop the patched `memreduct.exe` in a per-user folder with an
-  empty `memreduct.ini` next to it (portable mode). Zero install, zero UAC.
+  installer entirely — drop the patched `ibsmemcleaner.exe` in a per-user folder with an
+  empty `ibsmemcleaner.ini` next to it (portable mode). Zero install, zero UAC.
