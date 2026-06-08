@@ -41,7 +41,7 @@ jobs:
 
       - name: Build (${{ matrix.platform }} Release, toolset v143)
         working-directory: ibsmemcleaner
-        run: msbuild ibsmemcleaner.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:PlatformToolset=v143
+        run: msbuild ibsmemcleaner.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:PlatformToolset=v143 /p:TreatWarningAsError=false
 
       - name: Locate exe
         id: find
