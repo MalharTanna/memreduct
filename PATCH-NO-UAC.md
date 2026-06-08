@@ -128,3 +128,48 @@ build.bat                                  :: -> calls ..\builder\build memreduc
 
 Output `memreduct.exe` goes to `bin\`. For a quick test build you can also open
 `memreduct.sln` in Visual Studio (x64) and build.
+
+---
+
+## Part 3 — installing without UAC
+
+The stock henrypp installer (`builder/src/setup_script.nsi`) always prompts for
+UAC, for three reasons:
+
+| Line | Setting | Why it needs admin |
+|------|---------|--------------------|
+| 117 | `RequestExecutionLevel admin` | requests elevation outright |
+| 114 | `InstallDir "$PROGRAMFILES64\..."` | Program Files is admin-only |
+| 408+ | `WriteRegStr HKLM ...` | per-machine registry is admin-only |
+
+This repo ships a **per-user installer** that avoids all three:
+[`installer/setup_user.nsi`](installer/setup_user.nsi). It uses
+`RequestExecutionLevel user`, installs to `%LOCALAPPDATA%\Programs\Mem Reduct`,
+and writes only HKCU — so it installs, creates shortcuts, registers an Add/Remove
+Programs entry, and (optionally) sets sign-in autostart, all with **no UAC prompt**.
+
+Build it on Windows after building `memreduct.exe` (needs [NSIS](https://nsis.sourceforge.io)):
+
+```bat
+cd installer
+build_installer.bat            :: -> memreduct-3.5.3-setup-user.exe
+```
+
+(or `makensis /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\bin setup_user.nsi`)
+
+Edit `VER` / `FILES` at the top of `build_installer.bat` if your built exe lives
+elsewhere.
+
+### Honest caveats
+
+- **SmartScreen, not UAC:** an unsigned exe from an unknown publisher may trigger
+  "Windows protected your PC" on first run (Defender SmartScreen). That is a
+  *reputation* warning, dismissible with **More info → Run anyway** — it is not an
+  admin/UAC prompt. Authenticode-signing the installer + exe removes it over time;
+  the GPG `.sig` henrypp ships is not Authenticode and does not affect SmartScreen.
+- **The Part 2 privilege grant still requires admin once.** Installing without UAC
+  and *cleaning* without UAC are separate problems — the per-user installer solves
+  the first; only the one-time User Rights Assignment (Part 2) solves the second.
+- **Portable alternative:** if you don't need shortcuts / uninstall entry, skip the
+  installer entirely — drop the patched `memreduct.exe` in a per-user folder with an
+  empty `memreduct.ini` next to it (portable mode). Zero install, zero UAC.
