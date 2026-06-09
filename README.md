@@ -1,4 +1,8 @@
-<h1 align="center">Mem Reduct</h1>
+<h1 align="center">IBS Mem Cleaner</h1>
+
+<p align="center">
+	<i>A rebranded fork of <a href="https://github.com/henrypp/memreduct">Mem Reduct</a> by Henry++, patched for no-UAC use by standard users — see <a href="PATCH-NO-UAC.md">PATCH-NO-UAC.md</a>. All credit for the original program remains with Henry++; the badges below point to the upstream project.</i>
+</p>
 
 <p align="center">
 	<a href="https://github.com/henrypp/memreduct/releases"><img src="https://img.shields.io/github/v/release/henrypp/memreduct?style=flat-square&include_prereleases&label=version" /></a>
@@ -23,7 +27,7 @@ The program used undocumented internal system features (Native API) to clear sys
 You can download either the installer or portable version. For correct working you are require administrator rights.
 
 ```
-To activate portable mode, create "memreduct.ini" in application folder, or move it from "%APPDATA%\Henry++\Mem Reduct".
+To activate portable mode, create "ibsmemcleaner.ini" in application folder, or move it from "%APPDATA%\Henry++\IBS Mem Cleaner".
 ```
 
 ### System requirements:
@@ -38,7 +42,7 @@ To activate portable mode, create "memreduct.ini" in application folder, or move
 - [Paypal](https://paypal.me/henrypp) (USD)
 
 ### GPG Signature:
-Binaries have GPG signature `memreduct.exe.sig` in application folder.
+Binaries have GPG signature `ibsmemcleaner.exe.sig` in application folder.
 
 - Public key: [pubkey.asc](https://raw.githubusercontent.com/henrypp/builder/master/pubkey.asc) ([pgpkeys.eu](https://pgpkeys.eu/pks/lookup?op=index&fingerprint=on&search=0x5635B5FD))
 - Key ID: 0x5635B5FD

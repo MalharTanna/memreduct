@@ -1,6 +1,6 @@
 @echo off
 
 cd ..\builder
-call build_locale memreduct
+call build_locale ibsmemcleaner
 
 pause

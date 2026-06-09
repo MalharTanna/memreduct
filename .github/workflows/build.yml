@@ -1,0 +1,119 @@
+name: Build IBS Mem Cleaner
+
+# Builds the exe (and the per-user, no-UAC installer) on a Windows cloud runner
+# so an artifact can be produced without a local Windows machine.
+#
+# Notes:
+# - The project's stock toolset is v145 (VS 2026), which hosted runners don't
+#   have yet, so we override to v143 (VS 2022). It's plain C against the Windows
+#   SDK, so the older toolset compiles it.
+# - The `routine` SDK is compiled straight into the project (..\routine\src\*.c).
+#   Its .gitmodules path is a *sibling* (../routine), so we clone it next to the
+#   app checkout rather than using submodules.
+
+on:
+  push:
+    branches: [ feature/standard-user-no-uac, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64]   # add ARM64 here to also build that target
+
+    env:
+      # Optional Authenticode signing. Add repo secrets CODE_SIGN_PFX_BASE64
+      # (base64 of a .pfx) and CODE_SIGN_PASSWORD to sign the exe + installer.
+      # Without them the signing steps are skipped (unsigned build). See SIGNING.md.
+      SIGN_PFX_B64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+      SIGN_PFX_PASS: ${{ secrets.CODE_SIGN_PASSWORD }}
+
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+        with:
+          path: ibsmemcleaner
+
+      - name: Checkout routine SDK (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: henrypp/routine
+          path: routine
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build (${{ matrix.platform }} Release, toolset v143)
+        working-directory: ibsmemcleaner
+        run: msbuild ibsmemcleaner.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:PlatformToolset=v143 /p:TreatWarningAsError=false
+
+      - name: Locate exe
+        id: find
+        shell: pwsh
+        working-directory: ibsmemcleaner
+        run: |
+          $exe = Get-ChildItem -Path bin -Recurse -Filter ibsmemcleaner.exe | Select-Object -First 1
+          if (-not $exe) { Write-Error "ibsmemcleaner.exe not found under bin\"; exit 1 }
+          Write-Host "Built: $($exe.FullName)"
+          "exe=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Sign exe (if signing cert configured)
+        if: env.SIGN_PFX_B64 != ''
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'cs.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_B64))
+          $st = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
+                Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $st) { throw 'signtool.exe not found on runner' }
+          & $st.FullName sign /f $pfx /p $env:SIGN_PFX_PASS /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 "${{ steps.find.outputs.exe }}"
+          if ($LASTEXITCODE -ne 0) { throw 'signtool (exe) failed' }
+          Remove-Item $pfx -Force
+
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibsmemcleaner-${{ matrix.platform }}-exe
+          path: ${{ steps.find.outputs.exe }}
+          if-no-files-found: error
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Stage files for installer
+        shell: pwsh
+        working-directory: ibsmemcleaner
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "${{ steps.find.outputs.exe }}" dist\
+          if (Test-Path bin\ibsmemcleaner.lng) { Copy-Item bin\ibsmemcleaner.lng dist\ }
+          Get-ChildItem bin -Filter *.txt | Copy-Item -Destination dist\ -ErrorAction SilentlyContinue
+
+      - name: Build per-user installer
+        working-directory: ibsmemcleaner/installer
+        run: '& "C:\Program Files (x86)\NSIS\makensis.exe" /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\dist setup_user.nsi'
+
+      - name: Sign installer (if signing cert configured)
+        if: env.SIGN_PFX_B64 != ''
+        shell: pwsh
+        working-directory: ibsmemcleaner/installer
+        run: |
+          $setup = Get-ChildItem -Filter 'ibsmemcleaner-*-setup-user.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'installer exe not found' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cs.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_B64))
+          $st = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
+                Sort-Object FullName -Descending | Select-Object -First 1
+          & $st.FullName sign /f $pfx /p $env:SIGN_PFX_PASS /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $setup.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'signtool (installer) failed' }
+          Remove-Item $pfx -Force
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibsmemcleaner-${{ matrix.platform }}-setup-user
+          path: ibsmemcleaner/installer/ibsmemcleaner-*-setup-user.exe
+          if-no-files-found: error

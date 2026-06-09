@@ -3,8 +3,8 @@
 
 #pragma once
 
-#define APP_NAME L"Mem Reduct"
-#define APP_NAME_SHORT L"memreduct"
+#define APP_NAME L"IBS Mem Cleaner"
+#define APP_NAME_SHORT L"ibsmemcleaner"
 #define APP_VERSION L"3.5.3"
 #define APP_VERSION_RES 3,5,3,0
 #define APP_AUTHOR L"Henry++"
