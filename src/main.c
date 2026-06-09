@@ -235,7 +235,7 @@ VOID _app_memoryclean (
 	ULONG flags = NIIF_WARNING;
 	NTSTATUS status;
 
-	if (!_r_config_getboolean (L"IsNotificationsSound", TRUE))
+	if (!_r_config_getboolean (L"IsNotificationsSound", FALSE))
 		flags |= NIIF_NOSOUND;
 
 	if (!is_privileged)
@@ -265,11 +265,11 @@ VOID _app_memoryclean (
 	}
 
 	if (!mask)
-		mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_DEFAULT);
+		mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_ALL);
 
 	if (src == SOURCE_AUTO)
 	{
-		if (!_r_config_getboolean (L"IsAllowStandbyListCleanup", FALSE))
+		if (!_r_config_getboolean (L"IsAllowStandbyListCleanup", TRUE))
 			mask &= ~REDUCT_MASK_FREEZES; // exclude freezes from autoclean feature ;)
 	}
 	else if (src == SOURCE_MANUAL)
@@ -419,7 +419,7 @@ VOID _app_memoryclean (
 		// public SDK: _r_tray_popup returns void, so we can't fall back on its
 		// result. Show the balloon when a tray window exists, otherwise a
 		// message box. (public-sdk port)
-		if (hwnd && _r_config_getboolean (L"BalloonCleanResults", TRUE))
+		if (hwnd && _r_config_getboolean (L"BalloonCleanResults", FALSE))
 		{
 			_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2);
 		}
@@ -430,7 +430,7 @@ VOID _app_memoryclean (
 	}
 	else
 	{
-		if (hwnd && _r_config_getboolean (L"BalloonCleanResults", TRUE))
+		if (hwnd && _r_config_getboolean (L"BalloonCleanResults", FALSE))
 			_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2);
 	}
 
@@ -638,13 +638,13 @@ VOID CALLBACK _app_timercallback (
 	// autocleanup functional
 	if (is_privileged)
 	{
-		if (_r_config_getboolean (L"AutoreductEnable", FALSE))
+		if (_r_config_getboolean (L"AutoreductEnable", TRUE))
 		{
 			if (mem_info.physical_memory.percent >= _app_getlimitvalue ())
 				is_clean = TRUE;
 		}
 
-		if (!is_clean && _r_config_getboolean (L"AutoreductIntervalEnable", FALSE))
+		if (!is_clean && _r_config_getboolean (L"AutoreductIntervalEnable", TRUE))
 		{
 			timestamp = _r_unixtime_now () - _r_config_getlong64 (L"StatisticLastReduct", 0);
 
@@ -838,10 +838,10 @@ INT_PTR CALLBACK SettingsProc (
 			{
 				case IDD_SETTINGS_GENERAL:
 				{
-					_r_ctrl_checkbutton (hwnd, IDC_ALWAYSONTOP_CHK, _r_config_getboolean (L"AlwaysOnTop", FALSE));
+					_r_ctrl_checkbutton (hwnd, IDC_ALWAYSONTOP_CHK, _r_config_getboolean (L"AlwaysOnTop", TRUE));
 					_r_ctrl_checkbutton (hwnd, IDC_LOADONSTARTUP_CHK, _r_autorun_isenabled ());
-					_r_ctrl_checkbutton (hwnd, IDC_STARTMINIMIZED_CHK, _r_config_getboolean (L"IsStartMinimized", FALSE));
-					_r_ctrl_checkbutton (hwnd, IDC_REDUCTCONFIRMATION_CHK, _r_config_getboolean (L"IsShowReductConfirmation", TRUE));
+					_r_ctrl_checkbutton (hwnd, IDC_STARTMINIMIZED_CHK, _r_config_getboolean (L"IsStartMinimized", TRUE));
+					_r_ctrl_checkbutton (hwnd, IDC_REDUCTCONFIRMATION_CHK, _r_config_getboolean (L"IsShowReductConfirmation", FALSE));
 
 					if (!_r_sys_iselevated ())
 						_r_ctrl_enable (hwnd, IDC_SKIPUACWARNING_CHK, FALSE);
@@ -879,7 +879,7 @@ INT_PTR CALLBACK SettingsProc (
 
 					_r_listview_setcolumn (hwnd, IDC_REGIONS, 0, NULL, -100);
 
-					mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_DEFAULT);
+					mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_ALL);
 
 					_r_listview_setitemcheck (hwnd, IDC_REGIONS, 0, (mask & REDUCT_WORKING_SET) == REDUCT_WORKING_SET);
 					_r_listview_setitemcheck (hwnd, IDC_REGIONS, 1, (mask & REDUCT_SYSTEM_FILE_CACHE) == REDUCT_SYSTEM_FILE_CACHE);
@@ -901,13 +901,13 @@ INT_PTR CALLBACK SettingsProc (
 						_r_ctrl_enable (hwnd, IDC_HOTKEY_CLEAN, FALSE);
 					}
 
-					_r_ctrl_checkbutton (hwnd, IDC_AUTOREDUCTENABLE_CHK, _r_config_getboolean (L"AutoreductEnable", FALSE));
+					_r_ctrl_checkbutton (hwnd, IDC_AUTOREDUCTENABLE_CHK, _r_config_getboolean (L"AutoreductEnable", TRUE));
 
 					_r_updown_setrange (hwnd, IDC_AUTOREDUCTVALUE, 1, 99);
 
 					_r_updown_setvalue (hwnd, IDC_AUTOREDUCTVALUE, _app_getlimitvalue ());
 
-					_r_ctrl_checkbutton (hwnd, IDC_AUTOREDUCTINTERVALENABLE_CHK, _r_config_getboolean (L"AutoreductIntervalEnable", FALSE));
+					_r_ctrl_checkbutton (hwnd, IDC_AUTOREDUCTINTERVALENABLE_CHK, _r_config_getboolean (L"AutoreductIntervalEnable", TRUE));
 
 					_r_updown_setrange (hwnd, IDC_AUTOREDUCTINTERVALVALUE, 1, 1440);
 
@@ -1005,15 +1005,15 @@ INT_PTR CALLBACK SettingsProc (
 					_r_combobox_setcurrentitem (hwnd, IDC_TRAYACTIONSC, _r_config_getlong (L"TrayActionDc", 0));
 					_r_combobox_setcurrentitem (hwnd, IDC_TRAYACTIONMC, _r_config_getlong (L"TrayActionMc", 1));
 
-					_r_ctrl_checkbutton (hwnd, IDC_SHOW_CLEAN_RESULT_CHK, _r_config_getboolean (L"BalloonCleanResults", TRUE));
-					_r_ctrl_checkbutton (hwnd, IDC_NOTIFICATIONSOUND_CHK, _r_config_getboolean (L"IsNotificationsSound", TRUE));
+					_r_ctrl_checkbutton (hwnd, IDC_SHOW_CLEAN_RESULT_CHK, _r_config_getboolean (L"BalloonCleanResults", FALSE));
+					_r_ctrl_checkbutton (hwnd, IDC_NOTIFICATIONSOUND_CHK, _r_config_getboolean (L"IsNotificationsSound", FALSE));
 
 					break;
 				}
 
 				case IDD_SETTINGS_ADVANCED:
 				{
-					_r_ctrl_checkbutton (hwnd, IDC_ALLOWSTANDBYLISTCLEANUP_CHK, _r_config_getboolean (L"IsAllowStandbyListCleanup", FALSE));
+					_r_ctrl_checkbutton (hwnd, IDC_ALLOWSTANDBYLISTCLEANUP_CHK, _r_config_getboolean (L"IsAllowStandbyListCleanup", TRUE));
 					_r_ctrl_checkbutton (hwnd, IDC_LOGRESULTS_CHK, _r_config_getboolean (L"LogCleanResults", FALSE));
 
 					break;
@@ -1273,7 +1273,7 @@ INT_PTR CALLBACK SettingsProc (
 					{
 						value = (ULONG)lpnmlv->lParam;
 
-						mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_DEFAULT);
+						mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_ALL);
 
 						if ((lpnmlv->uNewState & LVIS_STATEIMAGEMASK) == INDEXTOSTATEIMAGEMASK (2))
 						{
@@ -1864,11 +1864,11 @@ INT_PTR CALLBACK DlgProc (
 
 			if (hmenu)
 			{
-				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", FALSE));
+				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", TRUE));
 				_r_menu_checkitem (hmenu, IDM_USEDARKTHEME, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_LOADONSTARTUP_CHK, 0, MF_BYCOMMAND, _r_autorun_isenabled ());
-				_r_menu_checkitem (hmenu, IDM_STARTMINIMIZED_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsStartMinimized", FALSE));
-				_r_menu_checkitem (hmenu, IDM_REDUCTCONFIRMATION_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsShowReductConfirmation", TRUE));
+				_r_menu_checkitem (hmenu, IDM_STARTMINIMIZED_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsStartMinimized", TRUE));
+				_r_menu_checkitem (hmenu, IDM_REDUCTCONFIRMATION_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsShowReductConfirmation", FALSE));
 				_r_menu_checkitem (hmenu, IDM_SKIPUACWARNING_CHK, 0, MF_BYCOMMAND, _r_skipuac_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 
@@ -2206,7 +2206,7 @@ INT_PTR CALLBACK DlgProc (
 					// configure region submenu
 					if (hsubmenu_region)
 					{
-						mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_DEFAULT);
+						mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_ALL);
 
 						_r_menu_setitemtext (hsubmenu_region, IDM_WORKINGSET_CHK, FALSE, TITLE_WORKINGSET);
 						_r_menu_setitemtext (hsubmenu_region, IDM_SYSTEMFILECACHE_CHK, FALSE, TITLE_SYSTEMFILECACHE);
@@ -2254,7 +2254,7 @@ INT_PTR CALLBACK DlgProc (
 					// configure submenu #2
 					if (hsubmenu_limit)
 					{
-						is_enabled = _r_config_getboolean (L"AutoreductEnable", FALSE);
+						is_enabled = _r_config_getboolean (L"AutoreductEnable", TRUE);
 
 						_app_generate_menu (
 							hsubmenu_limit,
@@ -2270,7 +2270,7 @@ INT_PTR CALLBACK DlgProc (
 					// configure submenu #3
 					if (hsubmenu_interval)
 					{
-						is_enabled = _r_config_getboolean (L"AutoreductIntervalEnable", FALSE);
+						is_enabled = _r_config_getboolean (L"AutoreductIntervalEnable", TRUE);
 
 						_app_generate_menu (
 							hsubmenu_interval,
@@ -2345,7 +2345,7 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"AlwaysOnTop", FALSE);
+					new_val = !_r_config_getboolean (L"AlwaysOnTop", TRUE);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 					_r_config_setboolean (L"AlwaysOnTop", new_val);
@@ -2359,7 +2359,7 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"IsStartMinimized", FALSE);
+					new_val = !_r_config_getboolean (L"IsStartMinimized", TRUE);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 					_r_config_setboolean (L"IsStartMinimized", new_val);
@@ -2371,7 +2371,7 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"IsShowReductConfirmation", TRUE);
+					new_val = !_r_config_getboolean (L"IsShowReductConfirmation", FALSE);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 					_r_config_setboolean (L"IsShowReductConfirmation", new_val);
@@ -2437,7 +2437,7 @@ INT_PTR CALLBACK DlgProc (
 					ULONG new_mask = 0;
 					ULONG mask;
 
-					mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_DEFAULT);
+					mask = _r_config_getulong (L"ReductMask2", REDUCT_MASK_ALL);
 
 					switch (ctrl_id)
 					{
@@ -2582,7 +2582,7 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"AutoreductEnable", FALSE);
+					new_val = !_r_config_getboolean (L"AutoreductEnable", TRUE);
 
 					_r_config_setboolean (L"AutoreductEnable", new_val);
 
@@ -2593,7 +2593,7 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"AutoreductIntervalEnable", FALSE);
+					new_val = !_r_config_getboolean (L"AutoreductIntervalEnable", TRUE);
 
 					_r_config_setboolean (L"AutoreductIntervalEnable", new_val);
 
