@@ -24,6 +24,13 @@ jobs:
       matrix:
         platform: [x64]   # add ARM64 here to also build that target
 
+    env:
+      # Optional Authenticode signing. Add repo secrets CODE_SIGN_PFX_BASE64
+      # (base64 of a .pfx) and CODE_SIGN_PASSWORD to sign the exe + installer.
+      # Without them the signing steps are skipped (unsigned build). See SIGNING.md.
+      SIGN_PFX_B64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+      SIGN_PFX_PASS: ${{ secrets.CODE_SIGN_PASSWORD }}
+
     steps:
       - name: Checkout app
         uses: actions/checkout@v4
@@ -53,6 +60,19 @@ jobs:
           Write-Host "Built: $($exe.FullName)"
           "exe=$($exe.FullName)" >> $env:GITHUB_OUTPUT
 
+      - name: Sign exe (if signing cert configured)
+        if: env.SIGN_PFX_B64 != ''
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'cs.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_B64))
+          $st = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
+                Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $st) { throw 'signtool.exe not found on runner' }
+          & $st.FullName sign /f $pfx /p $env:SIGN_PFX_PASS /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 "${{ steps.find.outputs.exe }}"
+          if ($LASTEXITCODE -ne 0) { throw 'signtool (exe) failed' }
+          Remove-Item $pfx -Force
+
       - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
@@ -75,6 +95,21 @@ jobs:
       - name: Build per-user installer
         working-directory: ibsmemcleaner/installer
         run: '& "C:\Program Files (x86)\NSIS\makensis.exe" /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\dist setup_user.nsi'
+
+      - name: Sign installer (if signing cert configured)
+        if: env.SIGN_PFX_B64 != ''
+        shell: pwsh
+        working-directory: ibsmemcleaner/installer
+        run: |
+          $setup = Get-ChildItem -Filter 'ibsmemcleaner-*-setup-user.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'installer exe not found' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cs.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_B64))
+          $st = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
+                Sort-Object FullName -Descending | Select-Object -First 1
+          & $st.FullName sign /f $pfx /p $env:SIGN_PFX_PASS /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $setup.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'signtool (installer) failed' }
+          Remove-Item $pfx -Force
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

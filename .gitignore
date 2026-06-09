@@ -10,8 +10,14 @@ win32/
 arm64/
 __pycache__
 _artifacts/
+_release/
 installer/dist/
 installer/*-setup-user.exe
+
+# never commit signing material
+*.pfx
+*.pfx.b64.txt
+ibs-codesign.*
 
 thumbs.db
 ehthumbs.db
