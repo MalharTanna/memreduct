@@ -416,10 +416,12 @@ VOID _app_memoryclean (
 
 	if (src == SOURCE_CMDLINE)
 	{
-		if (_r_config_getboolean (L"BalloonCleanResults", TRUE))
+		// public SDK: _r_tray_popup returns void, so we can't fall back on its
+		// result. Show the balloon when a tray window exists, otherwise a
+		// message box. (public-sdk port)
+		if (hwnd && _r_config_getboolean (L"BalloonCleanResults", TRUE))
 		{
-			if (!_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2))
-				_r_show_message (hwnd, MB_OK | MB_ICONINFORMATION, NULL, buffer2);
+			_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2);
 		}
 		else
 		{
