@@ -148,3 +148,7 @@ try {
 Write-Host ""
 Write-Host "SUCCESS - IBS Mem Cleaner deployed." -ForegroundColor Green
 Write-Host "Have the user(s) log off/on (or reboot) ONCE, then Clean memory runs with no UAC." -ForegroundColor Yellow
+
+# clean exit code for RMM tools (Action1, etc.). Any failure above throws under
+# $ErrorActionPreference='Stop' and exits non-zero, which the RMM reports as failed.
+exit 0
