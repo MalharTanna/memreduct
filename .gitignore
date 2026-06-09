@@ -14,10 +14,11 @@ _release/
 installer/dist/
 installer/*-setup-user.exe
 
-# never commit signing material
+# never commit signing material (the public .cer in deploy/ is intentionally tracked)
 *.pfx
+*.pfx.b64
 *.pfx.b64.txt
-ibs-codesign.*
+key.pem
 
 thumbs.db
 ehthumbs.db
