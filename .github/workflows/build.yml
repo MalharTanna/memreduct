@@ -14,6 +14,7 @@ name: Build IBS Mem Cleaner
 on:
   push:
     branches: [ feature/standard-user-no-uac, master ]
+    tags: [ 'v*' ]   # tagging vX.Y.Z publishes a release (see the release job)
   workflow_dispatch:
 
 jobs:
@@ -22,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64]   # add ARM64 here to also build that target
+        platform: [x64, ARM64]
 
     env:
       # Optional Authenticode signing. Add repo secrets CODE_SIGN_PFX_BASE64
@@ -93,8 +94,13 @@ jobs:
           Get-ChildItem bin -Filter *.txt | Copy-Item -Destination dist\ -ErrorAction SilentlyContinue
 
       - name: Build per-user installer
+        shell: pwsh
         working-directory: ibsmemcleaner/installer
-        run: '& "C:\Program Files (x86)\NSIS\makensis.exe" /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\dist setup_user.nsi'
+        run: |
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DAPP_VERSION=3.5.3 /DAPP_FILES_DIR=..\dist setup_user.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'makensis failed' }
+          # tag the output with the platform so x64/ARM64 installers don't collide
+          Rename-Item 'ibsmemcleaner-3.5.3-setup-user.exe' 'ibsmemcleaner-3.5.3-${{ matrix.platform }}-setup-user.exe'
 
       - name: Sign installer (if signing cert configured)
         if: env.SIGN_PFX_B64 != ''
@@ -117,3 +123,34 @@ jobs:
           name: ibsmemcleaner-${{ matrix.platform }}-setup-user
           path: ibsmemcleaner/installer/ibsmemcleaner-*-setup-user.exe
           if-no-files-found: error
+
+  # Publish a GitHub Release with the built (and, if configured, signed) binaries
+  # whenever a vX.Y.Z tag is pushed.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage release files
+        run: |
+          mkdir -p out
+          for p in x64 ARM64; do
+            exe="artifacts/ibsmemcleaner-$p-exe/ibsmemcleaner.exe"
+            if [ -f "$exe" ]; then cp "$exe" "out/ibsmemcleaner-${GITHUB_REF_NAME}-$p.exe"; fi
+            cp artifacts/ibsmemcleaner-$p-setup-user/*.exe out/ 2>/dev/null || true
+          done
+          ls -la out
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
