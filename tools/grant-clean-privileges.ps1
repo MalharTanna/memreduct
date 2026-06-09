@@ -44,8 +44,13 @@ public static class LsaHelper {
 }
 '@
 
-# resolve account -> SID bytes
-$sid = (New-Object System.Security.Principal.NTAccount($Account)).Translate([System.Security.Principal.SecurityIdentifier])
+# resolve account -> SID bytes (accept a SID string like S-1-5-32-545 directly,
+# or a name like "DOMAIN\user" / "BUILTIN\Users")
+if ($Account -match '^S-1-') {
+    $sid = New-Object System.Security.Principal.SecurityIdentifier($Account)
+} else {
+    $sid = (New-Object System.Security.Principal.NTAccount($Account)).Translate([System.Security.Principal.SecurityIdentifier])
+}
 $sidBytes = New-Object byte[] $sid.BinaryLength
 $sid.GetBinaryForm($sidBytes, 0)
 Write-Host "Account : $Account  ($($sid.Value))"
