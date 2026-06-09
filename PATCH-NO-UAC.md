@@ -117,6 +117,22 @@ the rights — confirm step 1 and that you actually logged off and on.
 
 ---
 
+## Building it (CI is the reliable path)
+
+> **Public-SDK note.** henrypp's public `memreduct` does **not** compile against
+> the public `routine` SDK — the app uses a private 3-arg config API and at least
+> one private-only helper. This fork is ported to the public SDK: the `_r_config_*`
+> calls were made 2-arg, and `_app_flushvolumecache` is stubbed (so the **"modified
+> file cache"** region is a no-op here — the other 7 cleaning regions are unaffected).
+> A plain local clone of upstream + public routine will **not** build for anyone;
+> use this fork.
+
+The repo builds in the cloud via **GitHub Actions** ([.github/workflows/build.yml](.github/workflows/build.yml)) —
+push, then download `ibsmemcleaner.exe` and the per-user installer from the run's
+Artifacts. The workflow clones `routine` as a sibling, overrides the toolset to
+v143 (hosted runners don't have v145/VS2026 yet), and runs NSIS. This is the
+recommended way to produce a binary.
+
 ## Build (on the Windows machine)
 
 Requires the submodules and MSVC (this repo can't build on macOS):

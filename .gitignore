@@ -9,6 +9,9 @@ x64/
 win32/
 arm64/
 __pycache__
+_artifacts/
+installer/dist/
+installer/*-setup-user.exe
 
 thumbs.db
 ehthumbs.db
