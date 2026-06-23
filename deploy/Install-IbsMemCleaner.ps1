@@ -1,26 +1,38 @@
 # ============================================================================
 # IBS Mem Cleaner - one-shot deployment. RMM-safe (Action1, GPO, or an elevated
-# PowerShell). Runs as SYSTEM/Administrator. Deliberately NO param() block and no
-# $PSScriptRoot use, so it survives RMM tools that wrap/inline the script.
+# PowerShell). Runs as SYSTEM/Administrator. NO param() block and no $PSScriptRoot
+# use, so it survives RMM tools that wrap/inline the script.
+#
+# Re-runnable: it ALWAYS reinstalls (stops any running instance, re-downloads,
+# overwrites). Each run leaves the machine in the correct end state.
 #
 # It does, machine-wide:
 #   1. trusts the embedded code-signing cert  -> no SmartScreen, Seqrite trusts it
-#   2. installs ibsmemcleaner.exe to %ProgramFiles%\IBS Mem Cleaner
-#   3. autostarts it for every user at logon (HKLM Run)
+#   2. (re)installs ibsmemcleaner.exe + the clean/log wrapper to %ProgramFiles%
+#   3. autostarts the tray app for every user at logon (HKLM Run)
 #   4. grants the no-UAC cleaning privileges to standard users
-# Users must log off/on (or reboot) ONCE afterwards for step 4 to take effect.
+#   5. registers a SYSTEM task that cleans + logs every N minutes (guaranteed,
+#      no dependency on the per-user privilege grant)
+#
+# Cleaning log (for IT admins):  C:\ProgramData\IBS Mem Cleaner\clean-log.csv
+#   one row per clean (timestamp, host, RAM% before/after, MB freed),
+#   rolling LAST 15 DAYS.
 # ============================================================================
 $ErrorActionPreference = 'Stop'
 
 # ===== settings (edit these if you want) ====================================
-$Grantee     = 'S-1-5-32-545'   # BUILTIN\Users = all local standard users
-$ExePath     = ''               # optional: full path to a local ibsmemcleaner.exe (else it downloads)
-$NoAutostart = $false           # $true to skip the logon autostart entry
+$Grantee        = 'S-1-5-32-545'   # BUILTIN\Users = all local standard users
+$ExePath        = ''               # optional: local ibsmemcleaner.exe (else it downloads)
+$NoAutostart    = $false           # $true to skip the per-user tray autostart
+$IntervalMin    = 10               # SYSTEM auto-clean interval (minutes)
+$LogRetainDays  = 15               # how many days of clean-log to keep
 # ============================================================================
 
 $Version    = '3.5.3'
 $ExeUrl     = "https://github.com/MalharTanna/memreduct/releases/download/v$Version-ibs/ibsmemcleaner-$Version-x64.exe"
 $InstallDir = Join-Path $env:ProgramFiles 'IBS Mem Cleaner'
+$Wrapper    = Join-Path $InstallDir 'clean-and-log.ps1'
+$TaskName   = 'IBS Mem Cleaner AutoClean'
 $Privileges = @('SeProfileSingleProcessPrivilege', 'SeIncreaseQuotaPrivilege')
 
 # Public code-signing cert (DER, base64). Safe to embed - no private key.
@@ -42,8 +54,13 @@ certutil -addstore -f "TrustedPublisher" $cer | Out-Null
 certutil -addstore -f "Root"             $cer | Out-Null
 Remove-Item $cer -Force
 
-# ---- 2. install the exe ----------------------------------------------------
-Step 2 "Installing app to $InstallDir ..."
+# ---- 2. (re)install the exe + the clean/log wrapper ------------------------
+Step 2 "Installing app to $InstallDir (reinstall every run)..."
+# stop any running instance + in-flight task so we can overwrite the exe
+Get-Process -Name ibsmemcleaner -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+schtasks /End /TN $TaskName 2>$null | Out-Null
+Start-Sleep -Milliseconds 700
+
 if (-not $ExePath -or -not (Test-Path $ExePath)) {
     Write-Host "      downloading signed exe..."
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -53,11 +70,55 @@ if (-not $ExePath -or -not (Test-Path $ExePath)) {
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Copy-Item $ExePath (Join-Path $InstallDir 'ibsmemcleaner.exe') -Force
 
-# ---- 3. autostart for all users -------------------------------------------
+# write the clean+log wrapper that the SYSTEM task runs each cycle
+$wrapperBody = @'
+# IBS Mem Cleaner - clean + log (run as SYSTEM by the scheduled task).
+$ErrorActionPreference = 'SilentlyContinue'
+$exe    = Join-Path $PSScriptRoot 'ibsmemcleaner.exe'
+$logDir = 'C:\ProgramData\IBS Mem Cleaner'
+$log    = Join-Path $logDir 'clean-log.csv'
+$retain = 15
+
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+if (-not (Test-Path $log)) { 'Timestamp,Host,UsedPctBefore,UsedPctAfter,FreedMB' | Set-Content -Encoding UTF8 $log }
+
+$os1   = Get-CimInstance Win32_OperatingSystem
+$total = [double]$os1.TotalVisibleMemorySize
+$free1 = [double]$os1.FreePhysicalMemory
+
+& $exe -clean:full
+Start-Sleep -Seconds 3
+
+$os2   = Get-CimInstance Win32_OperatingSystem
+$free2 = [double]$os2.FreePhysicalMemory
+
+$usedBefore = [math]::Round((($total - $free1) / $total) * 100, 1)
+$usedAfter  = [math]::Round((($total - $free2) / $total) * 100, 1)
+$freedMB    = [math]::Round(($free2 - $free1) / 1024, 1)
+$ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+"$ts,$env:COMPUTERNAME,$usedBefore,$usedAfter,$freedMB" | Add-Content -Encoding UTF8 $log
+
+# keep only the last N days
+try {
+    $cut  = (Get-Date).AddDays(-$retain)
+    $all  = @(Get-Content $log)
+    if ($all.Count -gt 1) {
+        $head = $all[0]
+        $kept = $all | Select-Object -Skip 1 | Where-Object {
+            $d = [datetime]::MinValue
+            if ([datetime]::TryParse(($_ -split ',')[0], [ref]$d)) { $d -ge $cut } else { $true }
+        }
+        @($head) + @($kept) | Set-Content -Encoding UTF8 $log
+    }
+} catch { }
+'@
+Set-Content -Path $Wrapper -Value $wrapperBody -Encoding UTF8 -Force
+
+# ---- 3. autostart the tray app for all users ------------------------------
 if ($NoAutostart) {
     Step 3 "Autostart skipped."
 } else {
-    Step 3 "Enabling autostart for all users..."
+    Step 3 "Enabling tray autostart for all users..."
     New-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'IBS Mem Cleaner' -PropertyType String -Value "`"$InstallDir\ibsmemcleaner.exe`"" -Force | Out-Null
 }
 
@@ -107,19 +168,18 @@ try {
     if ($st -ne 0) { throw "LsaAddAccountRights failed (WinError $([LsaHelper]::LsaNtStatusToWinError($st)))" }
 } finally { [LsaHelper]::LsaClose($h) | Out-Null }
 
-# ---- 5. SYSTEM scheduled task: guaranteed cleaning, no dependency on the user --
-# Runs ibsmemcleaner.exe -clean:full as SYSTEM every 10 min. SYSTEM always holds
-# the required privileges, so memory is cleaned even if a user's grant/relogin
-# hasn't happened yet. This is the reliable backbone for fleet auto-cleaning.
-Step 5 "Registering SYSTEM auto-clean task (every 10 min)..."
-$exe = Join-Path $InstallDir 'ibsmemcleaner.exe'
-& schtasks /Create /TN "IBS Mem Cleaner AutoClean" /TR "`"$exe`" -clean:full" /SC MINUTE /MO 10 /RU SYSTEM /RL HIGHEST /F | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "schtasks failed to create the auto-clean task" }
-# kick one clean off now so memory is freed immediately
-& schtasks /Run /TN "IBS Mem Cleaner AutoClean" | Out-Null
+# ---- 5. SYSTEM task: clean + log every N min (guaranteed, no user dependency)
+Step 5 "Registering SYSTEM clean+log task (every $IntervalMin min)..."
+$action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Wrapper`""
+$trigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMin) -RepetitionDuration (New-TimeSpan -Days 3650)
+$prin    = New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+$set     = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $prin -Settings $set -Force | Out-Null
+Start-ScheduledTask -TaskName $TaskName   # clean once now
 
 Write-Host ""
-Write-Host "SUCCESS - IBS Mem Cleaner deployed." -ForegroundColor Green
-Write-Host "Memory is now cleaned every 10 min by the SYSTEM task (works immediately, no reboot needed)." -ForegroundColor Green
-Write-Host "The in-app/manual Clean button needs the user to log off/on once (privilege grant)." -ForegroundColor Yellow
+Write-Host "SUCCESS - IBS Mem Cleaner deployed/updated." -ForegroundColor Green
+Write-Host "Auto-clean + logging via SYSTEM task every $IntervalMin min (works now, no reboot)." -ForegroundColor Green
+Write-Host "Admin log: C:\ProgramData\IBS Mem Cleaner\clean-log.csv (rolling $LogRetainDays days)." -ForegroundColor Green
+Write-Host "Manual in-app Clean needs the user to log off/on once (privilege grant)." -ForegroundColor Yellow
 exit 0
