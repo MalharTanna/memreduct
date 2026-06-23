@@ -32,7 +32,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administra
     throw "Must run as Administrator/SYSTEM (open an elevated PowerShell, or push via Action1/GPO)."
 }
 
-function Step($n, $m) { Write-Host "[$n/4] $m" -ForegroundColor Cyan }
+function Step($n, $m) { Write-Host "[$n/5] $m" -ForegroundColor Cyan }
 
 # ---- 1. trust the certificate ---------------------------------------------
 Step 1 "Trusting code-signing certificate..."
@@ -107,7 +107,19 @@ try {
     if ($st -ne 0) { throw "LsaAddAccountRights failed (WinError $([LsaHelper]::LsaNtStatusToWinError($st)))" }
 } finally { [LsaHelper]::LsaClose($h) | Out-Null }
 
+# ---- 5. SYSTEM scheduled task: guaranteed cleaning, no dependency on the user --
+# Runs ibsmemcleaner.exe -clean:full as SYSTEM every 10 min. SYSTEM always holds
+# the required privileges, so memory is cleaned even if a user's grant/relogin
+# hasn't happened yet. This is the reliable backbone for fleet auto-cleaning.
+Step 5 "Registering SYSTEM auto-clean task (every 10 min)..."
+$exe = Join-Path $InstallDir 'ibsmemcleaner.exe'
+& schtasks /Create /TN "IBS Mem Cleaner AutoClean" /TR "`"$exe`" -clean:full" /SC MINUTE /MO 10 /RU SYSTEM /RL HIGHEST /F | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "schtasks failed to create the auto-clean task" }
+# kick one clean off now so memory is freed immediately
+& schtasks /Run /TN "IBS Mem Cleaner AutoClean" | Out-Null
+
 Write-Host ""
 Write-Host "SUCCESS - IBS Mem Cleaner deployed." -ForegroundColor Green
-Write-Host "Have the user(s) log off/on (or reboot) ONCE, then Clean memory runs with no UAC." -ForegroundColor Yellow
+Write-Host "Memory is now cleaned every 10 min by the SYSTEM task (works immediately, no reboot needed)." -ForegroundColor Green
+Write-Host "The in-app/manual Clean button needs the user to log off/on once (privilege grant)." -ForegroundColor Yellow
 exit 0

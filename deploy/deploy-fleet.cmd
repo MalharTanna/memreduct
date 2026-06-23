@@ -41,11 +41,16 @@ copy /y "%HERE%ibsmemcleaner.exe" "%APPDIR%\ibsmemcleaner.exe" >nul || goto err
 echo [3/4] Enabling autostart for all users...
 reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "IBS Mem Cleaner" /t REG_SZ /d "\"%APPDIR%\ibsmemcleaner.exe\"" /f >nul || goto err
 
-echo [4/4] Granting no-UAC cleaning privileges to %GRANTEE%...
+echo [4/5] Granting no-UAC cleaning privileges to %GRANTEE%...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%grant-clean-privileges.ps1" -Account "%GRANTEE%" || goto err
 
+echo [5/5] Registering SYSTEM auto-clean task (every 10 min)...
+schtasks /Create /TN "IBS Mem Cleaner AutoClean" /TR "\"%APPDIR%\ibsmemcleaner.exe\" -clean:full" /SC MINUTE /MO 10 /RU SYSTEM /RL HIGHEST /F >nul || goto err
+schtasks /Run /TN "IBS Mem Cleaner AutoClean" >nul
+
 echo.
-echo SUCCESS. Have users log off/on (or reboot) once; then Clean memory runs with no UAC.
+echo SUCCESS. Memory is cleaned every 10 min by the SYSTEM task (works now, no reboot needed).
+echo The manual in-app Clean button needs the user to log off/on once.
 exit /b 0
 
 :err

@@ -416,16 +416,16 @@ VOID _app_memoryclean (
 
 	if (src == SOURCE_CMDLINE)
 	{
-		// public SDK: _r_tray_popup returns void, so we can't fall back on its
-		// result. Show the balloon when a tray window exists, otherwise a
-		// message box. (public-sdk port)
-		if (hwnd && _r_config_getboolean (L"BalloonCleanResults", FALSE))
+		// Only surface a result when we actually have a window. A headless
+		// "-clean" (e.g. the SYSTEM scheduled task, hwnd == NULL) stays silent so
+		// it can never block on a non-interactive session-0 message box.
+		// (status patch)
+		if (hwnd)
 		{
-			_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2);
-		}
-		else
-		{
-			_r_show_message (hwnd, MB_OK | MB_ICONINFORMATION, NULL, buffer2);
+			if (_r_config_getboolean (L"BalloonCleanResults", FALSE))
+				_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2);
+			else
+				_r_show_message (hwnd, MB_OK | MB_ICONINFORMATION, NULL, buffer2);
 		}
 	}
 	else
