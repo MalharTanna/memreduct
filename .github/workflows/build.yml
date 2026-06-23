@@ -4,9 +4,8 @@ name: Build IBS Mem Cleaner
 # so an artifact can be produced without a local Windows machine.
 #
 # Notes:
-# - The project's stock toolset is v145 (VS 2026), which hosted runners don't
-#   have yet, so we override to v143 (VS 2022). It's plain C against the Windows
-#   SDK, so the older toolset compiles it.
+# - Builds with the project's native toolset (v145 / VS 2026). Hosted runners
+#   moved to VS 2026 in mid-2026, so no toolset override is needed anymore.
 # - The `routine` SDK is compiled straight into the project (..\routine\src\*.c).
 #   Its .gitmodules path is a *sibling* (../routine), so we clone it next to the
 #   app checkout rather than using submodules.
@@ -47,9 +46,9 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Build (${{ matrix.platform }} Release, toolset v143)
+      - name: Build (${{ matrix.platform }} Release)
         working-directory: ibsmemcleaner
-        run: msbuild ibsmemcleaner.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:PlatformToolset=v143 /p:TreatWarningAsError=false
+        run: msbuild ibsmemcleaner.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:TreatWarningAsError=false
 
       - name: Locate exe
         id: find
