@@ -56,10 +56,14 @@ Remove-Item $cer -Force
 
 # ---- 2. (re)install the exe + the clean/log wrapper ------------------------
 Step 2 "Installing app to $InstallDir (reinstall every run)..."
-# stop any running instance + in-flight task so we can overwrite the exe
-Get-Process -Name ibsmemcleaner -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-schtasks /End /TN $TaskName 2>$null | Out-Null
-Start-Sleep -Milliseconds 700
+# Delete the task FIRST so it can't relaunch the exe mid-update, then force-kill
+# any running instance. cmd /c swallows "no such task / no process" cleanly so
+# they don't surface as errors under $ErrorActionPreference='Stop'.
+foreach ($tn in @($TaskName, "$TaskName (SYSTEM)")) {
+    cmd /c "schtasks /Delete /TN ""$tn"" /F >nul 2>&1"
+}
+cmd /c "taskkill /F /IM ibsmemcleaner.exe /T >nul 2>&1"
+Start-Sleep -Seconds 1
 
 if (-not $ExePath -or -not (Test-Path $ExePath)) {
     Write-Host "      downloading signed exe..."
@@ -68,7 +72,20 @@ if (-not $ExePath -or -not (Test-Path $ExePath)) {
     Invoke-WebRequest -Uri $ExeUrl -OutFile $ExePath -UseBasicParsing
 }
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-Copy-Item $ExePath (Join-Path $InstallDir 'ibsmemcleaner.exe') -Force
+
+# overwrite with retry - handles transient locks (running exe, AV scan, handle release)
+$dest = Join-Path $InstallDir 'ibsmemcleaner.exe'
+$copied = $false
+for ($i = 1; $i -le 10 -and -not $copied; $i++) {
+    try {
+        Copy-Item $ExePath $dest -Force
+        $copied = $true
+    } catch {
+        cmd /c "taskkill /F /IM ibsmemcleaner.exe /T >nul 2>&1"
+        Start-Sleep -Milliseconds 800
+    }
+}
+if (-not $copied) { throw "Could not overwrite $dest - still locked after 10 attempts." }
 
 # write the clean+log wrapper that the SYSTEM task runs each cycle
 $wrapperBody = @'
